@@ -7,53 +7,48 @@ use Illuminate\Support\Facades\Storage;
 use App\Imports\TendersImport;
 use App\Exports\TendersExport;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Validator;
 
 
 class ExcelController extends Controller
 {
+    public function validateCSV(string $path)
+    {
+        // $arrayCSV = new \SplFixedArray(40000);
+        $row = 0;
+        if (($handle = fopen($path, 'r')) !== FALSE) {
+            try {
+                $header = fgetcsv($handle, 5000, ';');
+                while (($data = fgetcsv($handle, 5000, ';')) !== FALSE) {
+                    // yield \SplFixedArray::fromArray($data); // 2.96mb 2.74 sec
+                    // yield $data; // 2.96mb 2.7 sec
+                    yield &$data; // 2.95mb 2.6 sec
+                }
+            } finally {
+                fclose($handle);
+            }
+        }
+    }
+
     public function store(Request $request)
     {
         if ($request->hasFile('document')) {
-            $time_start = microtime(true);
             $fileName = $request->file('document')->store('tenders');
             $fullPath = Storage::disk('local')->path($fileName);
-            $array = Excel::toArray(new TendersImport(1000, 1), $fullPath);
+            $row = 1;
+            $time_start = microtime(true);
+            echo 'Используемая память: ' . (float)(memory_get_usage ($real_usage = false) / 1000000) . 'MB<br>';
 
-            echo (microtime(true) - $time_start) . PHP_EOL;
-            echo '<pre>' . print_r($array, true) . '</pre>';
-            // return response()
-            // ->json(json_encode([
-                // 'success' => 1,
-                // 'data' => $array,
-            // ]));
+            foreach($this->validateCSV($fullPath) as $row) {
+                // echo '<pre>' . print_r($row, true) . '</pre>';
+            }
+            echo 'Используемая память: ' . (float)(memory_get_usage ($real_usage = false) / 1000000) . 'MB<br>';
+            echo (microtime(true) - $time_start) . '<br>';
+            // if( $this->validateCSV($fullPath)) {
+            //     echo 'Используемая память: ' . (float)(memory_get_usage ($real_usage = false) / 1000000) . 'MB<br>';
+            //     echo (microtime(true) - $time_start) . '<br>';
+            // };
         }
-
-
-
-
-        //     return response()
-        //             ->json(
-        //                 json_encode([
-        //                     'success' => 1,
-        //                     'tenders' => $array,
-        //                 ])
-        //             );
-            // return response()
-            //         ->json(
-            //             json_encode([
-            //                 'success' => 1,
-            //                 'path' => $fullPath,
-            //             ])
-            //         );
-        // } else {
-        //     return response()
-        //             ->json(
-        //                 json_encode([
-        //                     'success' => 0,
-        //                     'err_msg' => 'Error',
-        //                 ])
-        //             );
-        // }
     }
 
     public function chunkUpload(Request $request)
